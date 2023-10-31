@@ -1,0 +1,25 @@
+---
+title: "How to analysis in R"
+author: "Nozomi Niimi"
+execute:
+  echo: true
+format:
+  revealjs:
+    smaller: true
+---
+
+## What is R?
+
+-   統計に特化したプログラミング言語
+-   Ross Ihaka, Robert Gentlemanらによって1993年に開発
+-   ベースとなる言語がSだった為、Sの前に立つという意味で「R」を選んだらしい
+-   Rのみだと"すごい電卓"だけど、packageを入れることによって何でもできる!!
+-   CRANという団体がpackageの質を保証している
+    -   最近ではR-Universe等の他の団体も出来てきている
+```{mermaid}
+flowchart LR
+    A(Raw data) --> B(Prepare)
+    B --> C(Make Table 1)
+    C --> D{data analysis: \n  Logistic regression \n  survival analysis etc}
+    D --> E[Make other tables]
+    D --> F[Visualization]
