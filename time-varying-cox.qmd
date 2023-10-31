@@ -8,18 +8,37 @@ format:
     smaller: true
 ---
 
-## What is R?
+## Introduction
 
--   統計に特化したプログラミング言語
--   Ross Ihaka, Robert Gentlemanらによって1993年に開発
--   ベースとなる言語がSだった為、Sの前に立つという意味で「R」を選んだらしい
--   Rのみだと"すごい電卓"だけど、packageを入れることによって何でもできる!!
--   CRANという団体がpackageの質を保証している
-    -   最近ではR-Universe等の他の団体も出来てきている
-```{mermaid}
-flowchart LR
-    A(Raw data) --> B(Prepare)
-    B --> C(Make Table 1)
-    C --> D{data analysis: \n  Logistic regression \n  survival analysis etc}
-    D --> E[Make other tables]
-    D --> F[Visualization]
+-   生存分析において治療効果を定量化するときに最もよく使われるCox回帰分析
+-   Cox回帰はその性質上、いくつかの過程が必要である
+    -   比例ハザード性
+    -   **治療効果はどの時点でも同じ**
+    -   治療効果(関連)の線形性
+
+```{r}
+
+library(data.table)
+library(pammtools)
+library(survival)
+library(ggsurvfit)
+library(riskRegression)
+
+dat <- data(heart, package = "survival")
+```
+
+## でも現実は
+
+-   時間によって、関与する因子の情報が変わったりする
+    -   時期によってタバコの本数が変わったり禁煙をしたり
+-   因子が同じでも、時期によって関与の程度が変わる
+    -   放射線曝露は若年者と高齢者で与える影響はおそらく変わる
+-   どうする？
+
+## 簡単な解決方法
+
+-   細かく時間を区切って分ける
+
+-   例
+
+-   
