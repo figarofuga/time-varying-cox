@@ -23,14 +23,13 @@ format:
 ```{r}
 library(tidyverse)
 library(pammtools)
-library(rstmp2)
+library(rstpm2)
 library(survPen)
 library(survival)
 library(rms)
 library(ggsurvfit)
 library(riskRegression)
 
-dat <- data(heart, package = "survival")
 ```
 
 ## でも現実は
@@ -59,7 +58,16 @@ dat <- data(heart, package = "survival")
 
 data(heart, package = "survival")
 
-knitr::kable(head(jasa, 5)) |> 
+dat <- jasa |> 
+  dplyr::mutate(
+    futime = pmax(.5, fu.date - accept.dt), 
+    txtime = if_else(tx.date == fu.date, 
+                     (tx.date - accept.dt) -0.5, 
+                     (tx.date - accept.dt)), 
+    
+    subject = dplyr::row_number())
+
+knitr::kable(head(dat, 5)) |> 
   kableExtra::kable_styling(font_size = 8,
                             latex_options = "scale_down")
 
@@ -76,9 +84,9 @@ knitr::kable(head(jasa, 5)) |>
 
 ```{r}
 
-simple_fit <- survfit(Surv(futime, fustat) ~ transplant, data = jasa)
+simple_fit <- survfit(Surv(futime, fustat) ~ transplant, data = dat)
 
-survfit2(Surv(futime, fustat) ~ transplant, data = jasa) |> 
+survfit2(Surv(futime, fustat) ~ transplant, data = dat) |> 
   ggsurvfit(type = "risk") + 
   add_pvalue(location = "annotation") +
   add_risktable()
@@ -102,19 +110,39 @@ coxph(Surv(futime, fustat) ~ transplant, data = jasa) |>
 ## 実際
 
 ```{r}
-
-
 # Create time-varying covariate
-heart_tv <- survSplit(Surv(heart$start, heart$stop, heart$event) ~ ., data = heart, cut = 365)
 
-# Merge time-varying covariate with original dataset
-heart_tv <- merge(heart, heart_tv, all.x = TRUE)
+tdata <- dplyr::select(dat, subject, futime, txtime, fustat)
+
+xdata <- tmerge(dat, tdata, id=subject,
+death = event(futime, fustat),
+transplant = tdc(txtime),
+options= list(idname="subject"))
+
+sdata <- tmerge(dat, tdata, id=subject,
+death = event(futime, fustat),
+trt = tdc(txtime),
+options= list(idname="subject")) |> 
+  dplyr::mutate(age = age - 48, 
+                year = as.numeric(accept.dt - as.Date("1967-10-01"))/365.25)
+
+coxph(Surv(tstart, tstop, death) ~ age*trt + surgery + year,
+data= sdata, ties="breslow")
 
 # Fit Cox proportional hazards model
-cox_model <- coxph(Surv(start, stop, event) ~ age + sex + transplant + surgery + year + imonth + iday + transplant:tstart, data = heart_tv)
-
-# Obtain model summary
-summary(cox_model)
 
 ```
+
+
+```{r}
+
+options(show.signif.stars = FALSE)
+
+vfit <- coxph(Surv(time, status) ~ trt + prior + karno, data = veteran)
+
+```
+
+
+
+
 
