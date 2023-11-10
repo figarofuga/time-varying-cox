@@ -16,17 +16,17 @@ format:
     -   **治療効果はどの時点でも同じ**
     -   治療効果(関連)の線形性
 
-## Cox proportional hazardの比例ハザード性
+## Cox proportional hazardの比例ハザード
 
-絵を描く
-
-##
+## 
 
 ```{r}
-
-library(data.table)
+library(tidyverse)
 library(pammtools)
+library(rstmp2)
+library(survPen)
 library(survival)
+library(rms)
 library(ggsurvfit)
 library(riskRegression)
 
@@ -35,27 +35,68 @@ dat <- data(heart, package = "survival")
 
 ## でも現実は
 
-* 時間によって、関与する因子の情報が変わったりする
-  * 時期によってタバコの本数が変わったり禁煙をしたり
-* 因子が同じでも、時期によって関与の程度が変わる
-  * 放射線曝露は若年者と高齢者で与える影響はおそらく変わる
-* どうする？
+-   時間によって、関与する因子の情報が変わったりする
+    -   時期によってタバコの本数が変わったり禁煙をしたり
+-   因子が同じでも、時期によって関与の程度が変わる
+    -   放射線曝露は若年者と高齢者で与える影響はおそらく変わる
+-   どうする？
 
 ## 簡単な解決方法
 
-* 細かく時間を区切って分ける
-* 例
+-   細かく時間を区切って分ける
+-   例
 
 ## time-varying covariates
 
-* 実は2種類存在する
-1. 時間と共に値が変化する共変量
-1. 時間とともに係数が変化する
+-   実は2種類存在する
 
+1.  時間と共に値が変化する共変量
+2.  時間とともに係数が変化する
 
-
+## 時間と共に値が変化する共変量
 
 ```{r}
-# make slides of explain time-dependent covariates and coefficients cox proportional hazard model using R packages such as `survival`, `rms`, `rstmp2`, and `survPen`. 
+
+data(heart, package = "survival")
+
+knitr::kable(head(jasa, 5)) |> 
+  kableExtra::kable_styling(font_size = 8,
+                            latex_options = "scale_down")
+
+
 ```
 
+## 列名の意味
+
+-   
+
+-   
+
+## 通常の解析
+
+```{r}
+
+simple_fit <- survfit(Surv(futime, fustat) ~ transplant, data = jasa)
+
+survfit2(Surv(futime, fustat) ~ transplant, data = jasa) |> 
+  ggsurvfit(type = "risk") + 
+  add_pvalue(location = "annotation") +
+  add_risktable()
+
+coxph(Surv(futime, fustat) ~ transplant, data = jasa) |> 
+  gtsummary::tbl_regression(exponentiate = TRUE)
+
+```
+
+## この解析の問題は？
+
+-   生き残った人しか移植を受けられない
+    -   Lead time bias
+-   他の例: 悪性腫瘍の患者で、放射線曝露量と予後を見る
+    -   途中で亡くなる患者は放射線療法を最後まで受けられない\n → 治療効果を過大に推定してしまう!!
+
+## どうすればいい？
+
+\[絵を入れる\] \* 移植の待機中は非曝露期間として解析を行う
+
+## 実際
