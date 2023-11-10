@@ -100,3 +100,21 @@ coxph(Surv(futime, fustat) ~ transplant, data = jasa) |>
 \[絵を入れる\] \* 移植の待機中は非曝露期間として解析を行う
 
 ## 実際
+
+```{r}
+
+
+# Create time-varying covariate
+heart_tv <- survSplit(Surv(heart$start, heart$stop, heart$event) ~ ., data = heart, cut = 365)
+
+# Merge time-varying covariate with original dataset
+heart_tv <- merge(heart, heart_tv, all.x = TRUE)
+
+# Fit Cox proportional hazards model
+cox_model <- coxph(Surv(start, stop, event) ~ age + sex + transplant + surgery + year + imonth + iday + transplant:tstart, data = heart_tv)
+
+# Obtain model summary
+summary(cox_model)
+
+```
+
