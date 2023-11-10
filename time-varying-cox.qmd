@@ -16,6 +16,12 @@ format:
     -   **治療効果はどの時点でも同じ**
     -   治療効果(関連)の線形性
 
+## Cox proportional hazardの比例ハザード性
+
+絵を描く
+
+##
+
 ```{r}
 
 library(data.table)
@@ -29,16 +35,27 @@ dat <- data(heart, package = "survival")
 
 ## でも現実は
 
--   時間によって、関与する因子の情報が変わったりする
-    -   時期によってタバコの本数が変わったり禁煙をしたり
--   因子が同じでも、時期によって関与の程度が変わる
-    -   放射線曝露は若年者と高齢者で与える影響はおそらく変わる
--   どうする？
+* 時間によって、関与する因子の情報が変わったりする
+  * 時期によってタバコの本数が変わったり禁煙をしたり
+* 因子が同じでも、時期によって関与の程度が変わる
+  * 放射線曝露は若年者と高齢者で与える影響はおそらく変わる
+* どうする？
 
 ## 簡単な解決方法
 
--   細かく時間を区切って分ける
+* 細かく時間を区切って分ける
+* 例
 
--   例
+## time-varying covariates
 
--   
+* 実は2種類存在する
+1. 時間と共に値が変化する共変量
+1. 時間とともに係数が変化する
+
+
+
+
+```{r}
+# make slides of explain time-dependent covariates and coefficients cox proportional hazard model using R packages such as `survival`, `rms`, `rstmp2`, and `survPen`. 
+```
+
