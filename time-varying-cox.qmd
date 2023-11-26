@@ -21,6 +21,9 @@ format:
 ## 
 
 ```{r}
+#| label: setup
+#| echo: false
+
 library(tidyverse)
 library(pammtools)
 library(rstpm2)
@@ -56,6 +59,7 @@ library(riskRegression)
 ## 時間と共に値が変化する共変量
 
 ```{r}
+#| label: testdata-prep
 
 data(heart, package = "survival")
 
@@ -66,7 +70,8 @@ dat <- jasa |>
                      (tx.date - accept.dt) -0.5, 
                      (tx.date - accept.dt)), 
     
-    subject = dplyr::row_number())
+    subject = dplyr::row_number()) |> 
+  dplyr::rename(death_1 = fustat)
 
 knitr::kable(head(dat, 5)) |> 
   kableExtra::kable_styling(font_size = 8,
@@ -77,13 +82,30 @@ knitr::kable(head(dat, 5)) |>
 
 ## 列名の意味
 
--   
++---------------+-----------------------------------+
+| Column name   | Meaning                           |
++===============+===================================+
+| subject       | Patients' ID                      |
+|               |                                   |
+| tx.date       | Transplant date                   |
++---------------+-----------------------------------+
+| futime        | Follow-up time                    |
++---------------+-----------------------------------+
+| age           | Age (in years)                    |
++---------------+-----------------------------------+
+| mismatch      | Mismatch score                    |
++---------------+-----------------------------------+
+| death_1       | Death or alive (1 indicate death) |
++---------------+-----------------------------------+
+|               |                                   |
++---------------+-----------------------------------+
 
--   
+: Description of column name
 
 ## 通常の解析
 
 ```{r}
+#| label: simple-analysis
 
 simple_fit <- survfit(Surv(futime, fustat) ~ transplant, data = dat)
 
@@ -103,16 +125,27 @@ coxph(Surv(futime, fustat) ~ transplant, data = jasa) |>
 
 -   生き残った人しか移植を受けられない
     -   Lead time bias
--   他の例: 悪性腫瘍の患者で、放射線曝露量と予後を見る
+        -   治療効果を過大に評価してしまう
+        -   
+
+## 他の例
+
+-   悪性腫瘍の患者で、放射線曝露量と予後を見る
     -   途中で亡くなる患者は放射線療法を最後まで受けられない\n → 治療効果を過大に推定してしまう!!
+    -   放射線の被曝量が多いほど予後が良い？\n → そのまま信じると危険！
 
 ## どうすればいい？
 
-\[絵を入れる\] \* 移植の待機中は非曝露期間として解析を行う
+![Idea of time-dependent analysis](images/time-dependent-idea.jpeg){fig-align="center"}
 
-## 実際
+-   移植の待機中は非曝露期間として解析を行う
+
+## 実際の解析
 
 ```{r}
+
+#| label: time-varying-covariate-dataframe
+
 # Create time-varying covariate
 
 tdata <- dplyr::select(dat, subject, futime, txtime, fustat)
@@ -136,8 +169,8 @@ data= sdata, ties="breslow")
 
 ```
 
-
 ```{r}
+#| label: time-varying-coefficient
 
 options(show.signif.stars = FALSE)
 
@@ -160,8 +193,3 @@ karno:strata(tgroup), data=vet2)
 
 
 ```
-
-
-
-
-
