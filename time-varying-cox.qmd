@@ -4,11 +4,10 @@ author: "Nozomi Niimi"
 execute:
   echo: true
 format:
-  revealjs:
-    smaller: true
+  revealjs
 ---
 
-## Introduction
+## Introduction {.smaller}
 
 -   生存分析において治療効果を定量化するときに最もよく使われるCox回帰分析
 -   Cox回帰はその性質上、いくつかの過程が必要である
@@ -56,7 +55,7 @@ library(riskRegression)
 1.  時間と共に値が変化する共変量
 2.  時間とともに係数が変化する
 
-## 時間と共に値が変化する共変量
+## 1. 時間と共に値が変化する共変量
 
 ```{r}
 #| label: testdata-prep
@@ -66,9 +65,9 @@ data(heart, package = "survival")
 dat <- jasa |> 
   dplyr::mutate(
     futime = pmax(.5, fu.date - accept.dt), 
-    txtime = if_else(tx.date == fu.date, 
+    txtime = as.numeric(if_else(tx.date == fu.date, 
                      (tx.date - accept.dt) -0.5, 
-                     (tx.date - accept.dt)), 
+                     (tx.date - accept.dt))), 
     
     subject = dplyr::row_number()) |> 
   dplyr::rename(death_1 = fustat)
@@ -80,41 +79,43 @@ knitr::kable(head(dat, 5)) |>
 
 ```
 
-## 列名の意味
+## 列名の意味 {.smaller}
 
-+---------------+-----------------------------------+
-| Column name   | Meaning                           |
-+===============+===================================+
-| subject       | Patients' ID                      |
-|               |                                   |
-| tx.date       | Transplant date                   |
-+---------------+-----------------------------------+
-| futime        | Follow-up time                    |
-+---------------+-----------------------------------+
-| age           | Age (in years)                    |
-+---------------+-----------------------------------+
-| mismatch      | Mismatch score                    |
-+---------------+-----------------------------------+
-| death_1       | Death or alive (1 indicate death) |
-+---------------+-----------------------------------+
-|               |                                   |
-+---------------+-----------------------------------+
++---------------+----------------------------------------------------+
+| Column name   | Meaning                                            |
++===============+====================================================+
+| subject       | Patients' ID                                       |
+|               |                                                    |
+| tx.date       | Transplant date                                    |
++---------------+----------------------------------------------------+
+| futime        | Follow-up time                                     |
++---------------+----------------------------------------------------+
+| age           | Age (in years)                                     |
++---------------+----------------------------------------------------+
+| mismatch      | Mismatch score                                     |
++---------------+----------------------------------------------------+
+| death_1       | Death or alive (1 indicate death)                  |
++---------------+----------------------------------------------------+
+| tx.time       | Duration between registration and transplantation. |
++---------------+----------------------------------------------------+
+| reject        | rejection occured                                  |
++---------------+----------------------------------------------------+
 
-: Description of column name
+: Survival of patients on the waiting list for the Stanford heart transplant program.
 
 ## 通常の解析
 
 ```{r}
 #| label: simple-analysis
 
-simple_fit <- survfit(Surv(futime, fustat) ~ transplant, data = dat)
+simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
-survfit2(Surv(futime, fustat) ~ transplant, data = dat) |> 
+survfit2(Surv(futime, death_1) ~ transplant, data = dat) |> 
   ggsurvfit(type = "risk") + 
   add_pvalue(location = "annotation") +
   add_risktable()
 
-coxph(Surv(futime, fustat) ~ transplant, data = jasa) |> 
+coxph(Surv(futime, death_1) ~ transplant , data = dat) |> 
   gtsummary::tbl_regression(exponentiate = TRUE)
 
 
@@ -140,6 +141,29 @@ coxph(Surv(futime, fustat) ~ transplant, data = jasa) |>
 
 -   移植の待機中は非曝露期間として解析を行う
 
+## 分割しても大丈夫？
+```{r}
+
+colon_df <- survival::colon
+
+survfit2(Surv(time, status) ~ surg, data = colon_df) |> 
+  ggsurvfit(type = "risk") + 
+  add_pvalue(location = "annotation") +
+  add_risktable()
+
+survival::coxph(Surv(time, status) ~ surg, data = colon_df) |> 
+  finalfit::fit2df()
+
+colon_df2 <- survSplit(Surv(time, status) ~ ., colon_df,
+                   cut=seq(0, 3500, by = 300), episode ="timegroup")
+
+survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |> 
+  finalfit::fit2df()
+
+
+```
+
+
 ## 実際の解析
 
 ```{r}
@@ -148,23 +172,24 @@ coxph(Surv(futime, fustat) ~ transplant, data = jasa) |>
 
 # Create time-varying covariate
 
-tdata <- dplyr::select(dat, subject, futime, txtime, fustat)
+tdata <- dplyr::select(dat, subject, futime, txtime, death_1)
 
 xdata <- tmerge(dat, tdata, id=subject,
-death = event(futime, fustat),
+death = event(futime, death_1),
 transplant = tdc(txtime),
 options= list(idname="subject"))
 
 sdata <- tmerge(dat, tdata, id=subject,
-death = event(futime, fustat),
+death = event(futime, death_1),
 trt = tdc(txtime),
 options= list(idname="subject")) |> 
   dplyr::mutate(age = age - 48, 
                 year = as.numeric(accept.dt - as.Date("1967-10-01"))/365.25)
 
-coxph(Surv(tstart, tstop, death) ~ age*trt + surgery + year,
+time_depedent_fit <- coxph(Surv(tstart, tstop, death) ~ trt,
 data= sdata, ties="breslow")
 
+finalfit::fit2df(time_depedent_fit)
 # Fit Cox proportional hazards model
 
 ```
