@@ -98,29 +98,47 @@ knitr::kable(head(dat, 5)) |>
 
 ## 通常の解析
 
+:::: {.columns}
+
+::: {.column width="50%"}
+
 ```{r}
-#| label: simple-analysis
+#| label: simple-kmcurve
 
 simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
 survfit2(Surv(futime, death_1) ~ transplant, data = dat) |> 
   ggsurvfit(type = "risk") + 
+  scale_color_discrete(labels = c("Not transplant", "Transplant")) +
   add_pvalue(location = "annotation") +
   add_risktable()
+
+```
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| label: simple-coxanalysis
+
+simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
 coxph(Surv(futime, death_1) ~ transplant , data = dat) |> 
   gtsummary::tbl_regression(exponentiate = TRUE)
 
-
-
 ```
+
+:::
+
+::::
+
+-   Transplantされた患者の予後が極めて良い
 
 ## この解析の問題は？
 
 -   生き残った人しか移植を受けられない
     -   Lead time bias
         -   治療効果を過大に評価してしまう
-        -   
 
 ## 他の例
 
@@ -130,15 +148,53 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
     → そのまま信じると危険！
 
 ## どうすればいい？
+:::: {.columns}
+
+::: {.column width="50%"}
 
 ![Idea of time-dependent analysis](images/time-dependent-idea.jpeg){fig-align="center"}
 
 -   移植の待機中は非曝露期間として解析を行う
 
+:::
+
+::: {.column width="50%"}
+
+![Idea of time-dependent analysis](images/transplant-split-idea.jpeg){fig-align="center"}
+
+:::
+
+::::
+
 ## 分割しても大丈夫？
+
+![Idea of time-dependent analysis](images/time-split-idea.jpeg){fig-align="center"}
+
+-   Cox回帰の性質上、ちゃんと比例ハザード性が保たれていれば問題はない！
+
+## 実際の解析
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
 ```{r}
+#| label: data-info
 
 colon_df <- survival::colon
+
+knitr::kable(head(colon_df))
+
+paste0("Number of patients: ", nrow(colon_df))
+
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| label: basic-coxph
 
 survfit2(Surv(time, status) ~ surg, data = colon_df) |> 
   ggsurvfit(type = "risk") + 
@@ -146,16 +202,51 @@ survfit2(Surv(time, status) ~ surg, data = colon_df) |>
   add_risktable()
 
 survival::coxph(Surv(time, status) ~ surg, data = colon_df) |> 
-  finalfit::fit2df()
+  gtsummary::tbl_regression(exponentiate = TRUE)
+
+```
+
+:::
+
+-   テストデータ
+-   比例ハザード性は保たれていそう
+
+::::
+
+## 分割した場合
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
 
 colon_df2 <- survSplit(Surv(time, status) ~ ., colon_df,
                    cut=seq(0, 3500, by = 300), episode ="timegroup")
 
-survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |> 
-  finalfit::fit2df()
+knitr::kable(head(colon_df2))
+
+paste0("Number of patients: ", nrow(colon_df2))
 
 
 ```
+
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+
+survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |> 
+  gtsummary::tbl_regression(exponentiate = TRUE)
+
+
+```
+
+:::
+
+::::
 
 
 ## 実際の解析
