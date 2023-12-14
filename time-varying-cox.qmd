@@ -104,6 +104,7 @@ knitr::kable(head(dat, 5)) |>
 
 ```{r}
 #| label: simple-kmcurve
+#| column: margin
 
 simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
@@ -120,6 +121,7 @@ survfit2(Surv(futime, death_1) ~ transplant, data = dat) |>
 
 ```{r}
 #| label: simple-coxanalysis
+#| column: margin
 
 simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
@@ -150,7 +152,7 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
 ## どうすればいい？
 :::: {.columns}
 
-::: {.column width="50%"}
+::: {.column width="50%" .column-page}
 
 ![Idea of time-dependent analysis](images/time-dependent-idea.jpeg){fig-align="center"}
 
@@ -158,7 +160,7 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
 
 :::
 
-::: {.column width="50%"}
+::: {.column width="50%" .column-page}
 
 ![Idea of time-dependent analysis](images/transplant-split-idea.jpeg){fig-align="center"}
 
@@ -180,6 +182,7 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
 
 ```{r}
 #| label: data-info
+#| column: margin
 
 colon_df <- survival::colon
 
@@ -195,6 +198,7 @@ paste0("Number of patients: ", nrow(colon_df))
 
 ```{r}
 #| label: basic-coxph
+#| column: margin
 
 survfit2(Surv(time, status) ~ surg, data = colon_df) |> 
   ggsurvfit(type = "risk") + 
@@ -220,6 +224,8 @@ survival::coxph(Surv(time, status) ~ surg, data = colon_df) |>
 ::: {.column width="50%"}
 
 ```{r}
+#| label: split-data-analysis
+#| column: margin
 
 colon_df2 <- survSplit(Surv(time, status) ~ ., colon_df,
                    cut=seq(0, 3500, by = 300), episode ="timegroup")
@@ -237,6 +243,9 @@ paste0("Number of patients: ", nrow(colon_df2))
 ::: {.column width="50%"}
 
 ```{r}
+#| label: split-data-coxph
+#| column: margin
+
 
 survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |> 
   gtsummary::tbl_regression(exponentiate = TRUE)
