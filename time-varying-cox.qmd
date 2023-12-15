@@ -17,12 +17,15 @@ format:
 
 ## Cox proportional hazardの比例ハザード
 
-## 
+## ![Basic idea of Cox proportional hazard model](images/basic-cox-idea.jpeg)
+
+-   どの場所でもHazardの比率が同じ = 比例ハザード性
 
 ```{r}
 #| label: setup
 #| echo: false
 
+library(kableExtra)
 library(tidyverse)
 library(pammtools)
 library(rstpm2)
@@ -43,10 +46,13 @@ library(riskRegression)
     -   放射線曝露は若年者と高齢者で与える影響はおそらく変わる
 -   どうする？
 
-## time-varying covariates
+## Time-varying covariates
 
-1.  時間と共に値が変化する共変量
-2.  時間とともに係数が変化する
+-   時間によって変化する因子、2種類存在する
+
+    -   時間と共に値が変化する共変量
+
+    -   時間とともに係数が変化する
 
 ## 1. 時間と共に値が変化する共変量
 
@@ -66,33 +72,26 @@ dat <- jasa |>
   dplyr::rename(death_1 = fustat)
 
 knitr::kable(head(dat, 5)) |> 
-  kableExtra::kable_styling(font_size = 8,
-                            latex_options = "scale_down")
-
+  kableExtra::kable_classic(full_width = TRUE, html_font = "Cambria")
 
 ```
 
+-   わかりやすいのは、Crやタバコの本数
+-   一つの例として、Lead time biasの問題もある 
+
+
 ## 列名の意味 {.smaller}
 
-+---------------+----------------------------------------------------+
-| Column name   | Meaning                                            |
-+===============+====================================================+
-| subject       | Patients' ID                                       |
-+--------------------------------------------------------------------+|
-| tx.date       | Transplant date                                    |
-+---------------+----------------------------------------------------+
-| futime        | Follow-up time                                     |
-+---------------+----------------------------------------------------+
-| age           | Age (in years)                                     |
-+---------------+----------------------------------------------------+
-| mismatch      | Mismatch score                                     |
-+---------------+----------------------------------------------------+
-| death_1       | Death or alive (1 indicate death)                  |
-+---------------+----------------------------------------------------+
-| tx.time       | Duration between registration and transplantation. |
-+---------------+----------------------------------------------------+
-| reject        | rejection occured                                  |
-+---------------+----------------------------------------------------+
+| Column name | Meaning                                            |
+|-------------|----------------------------------------------------|
+| subject     | Patients' ID                                       |
+| tx.date     | Transplant date                                    |
+| futime      | Follow-up time                                     |
+| age         | Age (in years)                                     |
+| mismatch    | Mismatch score                                     |
+| death_1     | Death or alive (1 indicate death)                  |
+| tx.time     | Duration between registration and transplantation. |
+| reject      | rejection occured                                  |
 
 : Survival of patients on the waiting list for the Stanford heart transplant program.
 
@@ -101,7 +100,6 @@ knitr::kable(head(dat, 5)) |>
 :::: {.columns}
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: simple-kmcurve
 #| column: margin
@@ -118,7 +116,6 @@ survfit2(Surv(futime, death_1) ~ transplant, data = dat) |>
 :::
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: simple-coxanalysis
 #| column: margin
@@ -126,10 +123,11 @@ survfit2(Surv(futime, death_1) ~ transplant, data = dat) |>
 simple_fit <- survfit(Surv(futime, death_1) ~ transplant, data = dat)
 
 coxph(Surv(futime, death_1) ~ transplant , data = dat) |> 
-  gtsummary::tbl_regression(exponentiate = TRUE)
+  gtsummary::tbl_regression(exponentiate = TRUE) |> 
+  gtsummary::as_kable_extra() |> 
+  kableExtra::kable_classic(full_width = FALSE, html_font = "Cambria") 
 
 ```
-
 :::
 
 ::::
@@ -141,29 +139,29 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
 -   生き残った人しか移植を受けられない
     -   Lead time bias
         -   治療効果を過大に評価してしまう
+-   移植を受けた人は移植を受ける前に、「非移植」の時間帯がある
+    -   この時間帯をどう解析する？
 
 ## 他の例
 
 -   悪性腫瘍の患者で、放射線曝露量と予後を見る
     -   途中で亡くなる患者は放射線療法を最後まで受けられない\n → 治療効果を過大に推定してしまう!!
-    -   放射線の被曝量が多いほど予後が良い？ 
-    → そのまま信じると危険！
+    -   放射線の被曝量が多いほど予後が良い？ → そのまま信じると危険！
 
 ## どうすればいい？
+
 :::: {.columns}
 
-::: {.column width="50%" .column-page}
-
+::: {.column .column-page width="50%"}
 ![Idea of time-dependent analysis](images/time-dependent-idea.jpeg){fig-align="center"}
 
 -   移植の待機中は非曝露期間として解析を行う
-
 :::
 
-::: {.column width="50%" .column-page}
-
+::: {.column .column-page width="50%"}
 ![Idea of time-dependent analysis](images/transplant-split-idea.jpeg){fig-align="center"}
 
+-   移植前は「非移植」の群として扱う
 :::
 
 ::::
@@ -174,28 +172,38 @@ coxph(Surv(futime, death_1) ~ transplant , data = dat) |>
 
 -   Cox回帰の性質上、ちゃんと比例ハザード性が保たれていれば問題はない！
 
-## 実際の解析
+## 本当に？
 
 :::: {.columns}
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: data-info
 #| column: margin
 
-colon_df <- survival::colon
+colon_df <- survival::colon |> 
+  tibble::as_tibble() |>
+  dplyr::filter(etype == 1) |> 
+  dplyr::select(-study, -etype) |>
+  dplyr::relocate(id, time, status, everything())
 
-knitr::kable(head(colon_df))
+knitr::kable(head(colon_df)) |> 
+  kableExtra::kable_classic(full_width = F, html_font = "Cambria") |>
+  kableExtra::kable_styling(font_size = 8,
+                            latex_options = "scale_down")
 
 paste0("Number of patients: ", nrow(colon_df))
 
 ```
 
+::: {.smaller}
+-   大腸癌のデータ
+-   IDが1人1人の識別
+:::
+
 :::
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: basic-coxph
 #| column: margin
@@ -206,14 +214,19 @@ survfit2(Surv(time, status) ~ surg, data = colon_df) |>
   add_risktable()
 
 survival::coxph(Surv(time, status) ~ surg, data = colon_df) |> 
-  gtsummary::tbl_regression(exponentiate = TRUE)
+  gtsummary::tbl_regression(exponentiate = TRUE) |> 
+  gtsummary::as_kable_extra() |> 
+  kableExtra::kable_classic(full_width = TRUE, html_font = "Cambria")  |>
+  kableExtra::kable_styling(font_size = 8,
+                            latex_options = "scale_down")
 
 ```
-
 :::
 
+::: {.smaller}
 -   テストデータ
 -   比例ハザード性は保たれていそう
+:::
 
 ::::
 
@@ -222,71 +235,92 @@ survival::coxph(Surv(time, status) ~ surg, data = colon_df) |>
 :::: {.columns}
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: split-data-analysis
 #| column: margin
 
 colon_df2 <- survSplit(Surv(time, status) ~ ., colon_df,
-                   cut=seq(0, 3500, by = 300), episode ="timegroup")
+                   cut=seq(0, 3500, by = 300), episode ="timegroup") |> 
+  dplyr::relocate(id, time, tstart, timegroup, status, everything()) |> 
+  tibble::as_tibble()
 
-knitr::kable(head(colon_df2))
+knitr::kable(head(colon_df2, 8)) |> 
+  kableExtra::kable_classic(full_width = F, html_font = "Cambria") |>
+  kableExtra::kable_styling(font_size = 8,
+                            latex_options = "scale_down") |> 
+  kableExtra::column_spec(column = 1:5, bold = TRUE, color = "red")
 
 paste0("Number of patients: ", nrow(colon_df2))
 
 
 ```
-
-
 :::
 
 ::: {.column width="50%"}
-
 ```{r}
 #| label: split-data-coxph
 #| column: margin
 
 
 survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |> 
-  gtsummary::tbl_regression(exponentiate = TRUE)
+  gtsummary::tbl_regression(exponentiate = TRUE)  |>　
+  gtsummary::as_kable_extra() |>
+  kableExtra::kable_styling(font_size = 16,
+                            latex_options = "scale_down") |> 
+  kableExtra::kable_classic(full_width = TRUE, html_font = "Cambria")
 
 
 ```
-
 :::
 
 ::::
 
-
-## 実際の解析
+## 移植の話に戻って
 
 ```{r}
-
 #| label: time-varying-covariate-dataframe
-
 # Create time-varying covariate
 
 tdata <- dplyr::select(dat, subject, futime, txtime, death_1)
 
 xdata <- tmerge(dat, tdata, id=subject,
-death = event(futime, death_1),
-transplant = tdc(txtime),
-options= list(idname="subject"))
+  death = event(futime, death_1),
+  transplant = tdc(txtime),
+  options= list(idname="subject"))
 
 sdata <- tmerge(dat, tdata, id=subject,
-death = event(futime, death_1),
-trt = tdc(txtime),
-options= list(idname="subject")) |> 
+  death = event(futime, death_1),
+  trt = tdc(txtime),
+  options= list(idname="subject")) |> 
   dplyr::mutate(age = age - 48, 
                 year = as.numeric(accept.dt - as.Date("1967-10-01"))/365.25)
+
+knitr::kable(head(sdata, 8)) |> 
+  kableExtra::kable_classic(full_width = F, html_font = "Cambria") |>
+  kableExtra::kable_styling(font_size = 8,
+                            latex_options = "scale_down") |> 
+  kableExtra::column_spec(column = 1:5, bold = TRUE, color = "red")
 
 time_depedent_fit <- coxph(Surv(tstart, tstop, death) ~ trt,
 data= sdata, ties="breslow")
 
-finalfit::fit2df(time_depedent_fit)
+gtsummary::tbl_regression(time_depedent_fit, exponentiate = TRUE)  |>　
+  gtsummary::as_kable_extra() |>
+  kableExtra::kable_styling(font_size = 16,
+                            latex_options = "scale_down") |> 
+  kableExtra::kable_classic(full_width = TRUE, html_font = "Cambria")
+
 # Fit Cox proportional hazards model
 
 ```
+
+## ここまでのまとめ
+
+
+## 2. 時間とともに係数が変化する共変量
+
+-   例えば、放射線と悪性腫瘍やの関係はおそらく直線ではない
+-   例えば、CABGとMIの関係も時間により変化する(ISCHEMIA)
 
 ```{r}
 #| label: time-varying-coefficient
@@ -310,5 +344,17 @@ knitr::kable(head(dplyr::select(vet2, id, tstart, time, status, tgroup, age, kar
 vfit2 <- coxph(Surv(tstart, time, status) ~ trt + prior +
 karno:strata(tgroup), data=vet2)
 
-
 ```
+
+## どうやって、いつTime varying coxを使う？
+
+1. 時間により値が変化する共変量: シンプル
+2. 時間により値が変化する共変量: 残差を確認
+
+## 残差のチェック
+
+
+## 値を確認
+
+## 
+
