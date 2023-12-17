@@ -353,6 +353,29 @@ karno:strata(tgroup), data=vet2)
 
 ## 残差のチェック
 
+```{r}
+#| label: time-varying-coefficient
+
+options(show.signif.stars = FALSE)
+
+vfit <- coxph(Surv(time, status) ~ trt + prior + karno, data = veteran)
+
+quantile(veteran$karno)
+
+zp <- cox.zph(vfit, transform = function(time)log(time + 20))
+
+survminer::ggcoxzph(zp, var = "karno") |> ggpubr::ggpar(ylim = c(-0.12, 0.04))
+
+vet2 <- survSplit(Surv(time, status) ~ ., data = veteran, cut = c(90, 180), episode = "tgroup", id = "id")
+
+knitr::kable(head(dplyr::select(vet2, id, tstart, time, status, tgroup, age, karno))) |> 
+  kableExtra::kable_styling(latex_options = "scale_down")
+
+
+vfit2 <- coxph(Surv(tstart, time, status) ~ trt + prior +
+karno:strata(tgroup), data=vet2)
+
+```
 
 ## 値を確認
 
