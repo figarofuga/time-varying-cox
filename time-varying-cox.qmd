@@ -223,13 +223,44 @@ survival::coxph(Surv(time, status) ~ surg, data = colon_df) |>
 
 ```{r}
 
-tibble::tibble(
+set.seed(42)
+
+time_dat <- tibble::tibble(
   id = seq(1:100), 
-  creat_1 = rnorm(100, mean = 0.6, sd = 0.2), 
+  creat_1 = runif(100, min = 0.23, max = 2.2), 
   time_1 = 180, 
-  creat_2 = runif(100, min = 0.2, max = 1.3), 
-  time_2 = 360
-)
+  creat_2 = creat_1 + rnorm(n = 100, mean = 0.1, sd = 0.05), 
+  time_2 = 360, 
+  creat_3 = creat_2 + rnorm(n = 100, mean = -0.05, sd = 0.03), 
+  time_3 = 540, 
+  fu_time = floor(runif(100, min = 160, max=800)), 
+  fu_yn = rbinom(100, size = 1, prob = 0.4)
+) |> 
+  dplyr::mutate(
+  creat_1 = if_else(fu_time < 180, NA_real_, creat_1), 
+  creat_2 = if_else(fu_time < 360, NA_real_, creat_2), 
+  creat_3 = if_else(fu_time < 540, NA_real_, creat_3), 
+  time_1 = if_else(fu_time < 180, NA_real_, time_1), 
+  time_2 = if_else(fu_time < 360, NA_real_, time_2), 
+  time_3 = if_else(fu_time < 540, NA_real_, time_3),   
+  )
+
+
+time_dat_long <- tidyr::pivot_longer(time_dat, 
+                    cols = -c(id, fu_time, fu_yn), 
+                    names_pattern = "(.*)_(.)", 
+                    names_to = c(".value", "timing")) |> 
+  dplyr::filter(!is.na(creat)) |> 
+  dplyr::rename(tstop = time) |>
+  dplyr::mutate(tstart = case_when(
+    tstop == 180 ~ 0L, 
+    tstop == 360 ~ 181L, 
+    tstop == 540 ~ 361L
+  ))
+
+
+survival::coxph(Surv(tstart, tstop, fu_yn) ~ creat, data = time_dat_long)
+
 
 ```
 
@@ -295,39 +326,6 @@ survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |>
 ## 移植の話に戻って
 
 ```{r}
-#| label: time-varying-covariate-dataframe
-# Create time-varying covariate
-
-tdata <- dplyr::select(dat, subject, futime, txtime, death_1)
-
-xdata <- tmerge(dat, tdata, id=subject,
-  death = event(futime, death_1),
-  transplant = tdc(txtime),
-  options= list(idname="subject"))
-
-sdata <- tmerge(dat, tdata, id=subject,
-  death = event(futime, death_1),
-  trt = tdc(txtime),
-  options= list(idname="subject")) |> 
-  dplyr::mutate(age = age - 48, 
-                year = as.numeric(accept.dt - as.Date("1967-10-01"))/365.25)
-
-knitr::kable(head(sdata, 8)) |> 
-  kableExtra::kable_classic(full_width = F, html_font = "Cambria") |>
-  kableExtra::kable_styling(font_size = 8,
-                            latex_options = "scale_down") |> 
-  kableExtra::column_spec(column = 1:5, bold = TRUE, color = "red")
-
-time_depedent_fit <- coxph(Surv(tstart, tstop, death) ~ trt,
-data= sdata, ties="breslow")
-
-gtsummary::tbl_regression(time_depedent_fit, exponentiate = TRUE)  |>　
-  gtsummary::as_kable_extra() |>
-  kableExtra::kable_styling(font_size = 16,
-                            latex_options = "scale_down") |> 
-  kableExtra::kable_classic(full_width = TRUE, html_font = "Cambria")
-
-# Fit Cox proportional hazards model
 
 ```
 
@@ -396,3 +394,8 @@ karno:strata(tgroup), data=vet2)
 ## 値を確認
 
 ## 
+```{r}
+
+
+```
+
