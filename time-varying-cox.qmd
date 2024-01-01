@@ -7,6 +7,8 @@ format:
   revealjs
 ---
 
+<!-- https://necostat.hatenablog.jp/entry/2022/07/12/102442 -->
+
 ## Introduction {.smaller}
 
 -   生存分析において治療効果を定量化するときに最もよく使われるCox回帰分析
@@ -68,9 +70,41 @@ dat <- jasa |>
                      (tx.date - accept.dt) -0.5, 
                      (tx.date - accept.dt))), 
     
-    subject = dplyr::row_number()) |> 
+    id = dplyr::row_number()) |> 
   dplyr::rename(death_1 = fustat) |> 
-  dplyr::select(subject, transplant, txtime, death_1, futime)
+  dplyr::select(id,txtime,transplant, futime, death_1)
+
+long_dat <- survival::tmerge(dat,dat,id=id, new_death1=event(futime,death_1)) |> 
+  survival::tmerge(data2 = dat, id = id, new_transplant = tdc(txtime)) |> 
+  dplyr::select(id, txtime, new_transplant, tstart, tstop, new_death1)
+
+# tmergeの使い方
+# 3つのデータを用意する
+# 以下の3つのデータフレームを用意する。
+# 
+# d_base：ベースラインの患者背景データ
+# id：患者ID
+# z：時間非依存性変数（time-constant variable）
+# futime：フォローアップ期間
+# d_tdcov：時間依存性共変量のデータ
+# id：患者ID
+# ctime：変数を測定した時点
+# value：そのときの値
+# d_event：イベント発生データ
+# id：患者ID
+# etime：イベント発生時点
+# event_type：イベントの種類（1種類しかなければ不要）
+# 
+# base_timedat <- dplyr::select(time_dat, id, fu_time)
+# 
+# tdcov_timedat <- dplyr::select(time_dat, id, starts_with("time"), starts_with("creat"))
+# 
+# evet_timedat <-  dplyr::select(time_dat, id, fu_time, fu_yn)
+# 
+# # tstart, tstopを作る
+# tmerge(base_timedat, base_timedat, id=id, tstop=fu_time) |> 
+# # time dependent covariatesを作る  
+# tmerge(tdcov_timedat, id=id, creat1=tdc(time_1, creat_1))
 
 
 
@@ -112,6 +146,14 @@ survfit2(Surv(futime, death_1) ~ transplant, data = dat) |>
   scale_color_discrete(labels = c("Not transplant", "Transplant")) +
   add_pvalue(location = "annotation") +
   add_risktable()
+
+tdc_fit <- survfit(Surv(tstart, tstop, new_death1) ~ new_transplant, data = long_dat) 
+
+ggsurvplot(fit = tdc_fit, data = long_dat, fun = "event", risk.table = TRUE)
+
+coxph(Surv(tstart, tstop, new_death1) ~ new_transplant, data = long_dat) |> 
+  gtsummary::tbl_regression(exponentiate = TRUE)
+
 
 ```
 :::
@@ -249,14 +291,15 @@ time_dat <- tibble::tibble(
 time_dat_long <- tidyr::pivot_longer(time_dat, 
                     cols = -c(id, fu_time, fu_yn), 
                     names_pattern = "(.*)_(.)", 
-                    names_to = c(".value", "timing")) |> 
+                    names_to = c(".value", "timegroup")) |> 
   dplyr::filter(!is.na(creat)) |> 
   dplyr::rename(tstop = time) |>
   dplyr::mutate(tstart = case_when(
     tstop == 180 ~ 0L, 
     tstop == 360 ~ 181L, 
     tstop == 540 ~ 361L
-  ))
+  )) |> 
+  dplyr::relocate(id, timegroup, tstart, tstop, creat, everything())
 
 
 survival::coxph(Surv(tstart, tstop, fu_yn) ~ creat, data = time_dat_long)
@@ -327,6 +370,8 @@ survival::coxph(Surv(time, status) ~ surg, data = colon_df2) |>
 
 ```{r}
 
+
+
 ```
 
 ## ここまでのまとめ
@@ -396,6 +441,100 @@ karno:strata(tgroup), data=vet2)
 ## 
 ```{r}
 
+temp <- subset(pbc, id <= 312, select = c(id:sex, stage))
+
+pbc2 <- tmerge(temp, temp, id = id, death = event(time, status))
+
+pbc3 <- tmerge(pbc2, pbcseq, id = id, ascites = tdc(day, ascites), bili = tdc(day, bili), albumin = tdc(day, albumin), protime = tdc(day, protime), alk.phos = tdc(day, alk.phos))
+
+
+Hmisc::getHdata("valung")
+
+with(valung, {
+  rms::hazard.ratio.plot(1 * (cell == 'Squamous'), Surv(t, dead), e = 25, subset = cell != 'Large' ,pr = TRUE, pl = TRUE, ylim = c(-2.5, 0.5))
+})
+
+with(valung, {
+    rms::hazard.ratio.plot(1 * kps, Surv(t, dead), e = 25, pr = TRUE, pl = TRUE, ylim = c(-2.5, 0.5))
+})
+
 
 ```
+```{r}
+library(survival)
+library(rms)
+
+colon_tt <- dplyr::arrange(colon_df, time) |> 
+  dplyr::mutate(id = dplyr::row_number()) |> 
+  dplyr::slice_head(n = 400)
+# original coxph tt fit
+
+fit <- coxph(Surv(time,status) ~ age + sex + surg + tt(age), data = colon_tt, x=T,y=T,tt=function(x,t,...) x*log(t))
+
+# Creating a countingprocess-format survival file using survSplit
+
+colontt_long <-survSplit(Surv(time,status)~.,data = colon_tt, cut=1:max(colon_tt$time), start = "tstart", end = "tstop", episode="timegroup") |> 
+  dplyr::mutate(age_tt = age * log(timegroup))
+
+# some settings required for cph and other rms functions to work
+dd <- datadist(colontt_long)
+
+options(datadist="dd")
+
+# fitting the cph model
+
+fit_cph <- cph(Surv(tstart,tstop,status) ~ age + sex + surg + age_tt, x=T,y=T,data=colontt_long)
+
+
+fit_cox <- coxph(Surv(tstart,tstop,status) ~  age + sex + surg + age_tt, x=T,y=T,data=colontt_long)
+
+
+
+```
+
+
+```{r}
+
+kidney <- survival::kidney |> 
+  dplyr::mutate(id = dplyr::row_number())
+
+kidney_log <-survSplit(Surv(time,status)~.,data = kidney, cut=1:max(kidney$time), start = "tstart", end = "tstop", episode="timegroup") |> 
+  dplyr::mutate(frail_tt = frail * log(timegroup))
+
+kidney_log_fit <- coxph(Surv(tstart,tstop,status) ~  age + sex + disease + frail_tt, x=T,y=T,data=kidney_log)
+
+
+
+kidney_fit <- coxph(Surv(time, status) ~ age + sex + disease + frail, data = kidney)
+
+kidney_zph <- cox.zph(kidney_fit)
+
+
+par(mfrow = c(2, 2))
+plot(cox.zph(kidney_fit))
+
+step_kidney <- survSplit(Surv(time, status) ~ ., 
+                         data = survival::kidney, 
+                         cut = 31, start = "tstart", 
+                         episode = "timegroup", end = "tstop")
+
+step_fit <- coxph(Surv(tstart, tstop, status) ~ age + sex + disease + frail:strata(timegroup), data = step_kidney)
+
+gtsummary::tbl_regression(step_fit, exponentiate = TRUE)
+
+
+timereg::timecox(Surv(time, status) ~ const(age) + const(sex) + const(disease) + frail, data = kidney, n.sim = 500, max.time = 562)
+
+library(survPen)
+library(rstpm2)
+
+fit_pen <- survPen(formula = ~age + sex + disease + smf(frail, 3), data=kidney,t1=time, event=status)
+
+fit_rstpm <- rstpm2::pstpm2(formula = Surv(time, status) ~ frail, data = kidney, tvc = list(frail = -1))
+
+
+
+```
+
+
 
